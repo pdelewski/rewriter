@@ -1,3 +1,5 @@
+// clang -Xclang -ast-dump funcs.cpp
+
 int foo() 
 {
   return 1;

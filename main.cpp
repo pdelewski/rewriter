@@ -30,6 +30,11 @@ public:
     // Only care about If statements.
     if (isa<IfStmt>(s)) {
       IfStmt *IfStatement = cast<IfStmt>(s);
+      auto range = IfStatement->getSourceRange();
+      auto rangeSize = TheRewriter.getRangeSize(range);
+      //std::stringstream ss;
+      //ss << "If";
+      //TheRewriter.ReplaceText(IfStatement->getBeginLoc(),rangeSize,ss.str());
       Stmt *Then = IfStatement->getThen();
 
       TheRewriter.InsertText(Then->getBeginLoc(), "// the 'if' part\n", true,

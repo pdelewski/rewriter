@@ -96,7 +96,7 @@ class CLifterClassAction : public clang::ASTFrontendAction {
   public:
     virtual std::unique_ptr<clang::ASTConsumer>
     CreateASTConsumer(clang::CompilerInstance &Compiler,
-                      llvm::StringRef InFile) {
+                      llvm::StringRef InFile) override {
         TheRewriter.setSourceMgr(Compiler.getSourceManager(),
                                  Compiler.getLangOpts());
         return std::make_unique<CLifterConsumer>(&Compiler.getASTContext(),

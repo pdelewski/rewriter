@@ -1,159 +1,81 @@
-#include <cstdio>
-#include <memory>
-#include <sstream>
-#include <string>
-
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Basic/Diagnostic.h"
-#include "clang/Basic/FileManager.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Basic/TargetInfo.h"
-#include "clang/Basic/TargetOptions.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/Lex/Preprocessor.h"
-#include "clang/Parse/ParseAST.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Rewrite/Frontend/Rewriters.h"
-#include "llvm/TargetParser/Host.h"
-#include "llvm/Support/raw_ostream.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Tooling.h"
+
+#include <iostream>
 
 using namespace clang;
+using namespace clang::driver;
+using namespace clang::tooling;
 
-// By implementing RecursiveASTVisitor, we can specify which AST nodes
-// we're interested in by overriding relevant methods.
-class MyASTVisitor : public RecursiveASTVisitor<MyASTVisitor> {
-public:
-  MyASTVisitor(Rewriter &R) : TheRewriter(R) {}
+static llvm::cl::OptionCategory ToolingSampleCategory("CLifter");
 
-  bool VisitStmt(Stmt *s) {
-    // Only care about If statements.
-    if (isa<IfStmt>(s)) {
-      IfStmt *IfStatement = cast<IfStmt>(s);
-      auto range = IfStatement->getSourceRange();
-      auto rangeSize = TheRewriter.getRangeSize(range);
-      //std::stringstream ss;
-      //ss << "If";
-      //TheRewriter.ReplaceText(IfStatement->getBeginLoc(),rangeSize,ss.str());
-      Stmt *Then = IfStatement->getThen();
+class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
+  public:
+    explicit CLifterVisitor(ASTContext *Context) : Context(Context) {}
 
-      TheRewriter.InsertText(Then->getBeginLoc(), "// the 'if' part\n", true,
-                             true);
-
-      Stmt *Else = IfStatement->getElse();
-      if (Else)
-        TheRewriter.InsertText(Else->getBeginLoc(), "// the 'else' part\n",
-                               true, true);
+    bool VisitCompoundStmt(CompoundStmt *stmt) {
+        dumpParents(stmt);
+        return true;
     }
 
-    return true;
-  }
+  private:
+    void dumpParents(Stmt *stmt) {
+        const auto &parents = Context->getParents(*stmt);
+        std::cout << "parents size " << parents.size() << ": \n";
 
-  bool VisitFunctionDecl(FunctionDecl *f) {
-    // Only function definitions (with bodies), not declarations.
-    if (f->hasBody()) {
-      Stmt *FuncBody = f->getBody();
+        if (!parents.empty()) {
+            for (int i = 0; i < parents.size(); i++) {
+                std::cout << "parent at " << i << ": \n";
+                const Stmt *parentStmt = parents[i].get<Stmt>();
+                if (parentStmt) {
+                    parentStmt->dump();
+                }
+                const FunctionDecl *decl = parents[i].get<FunctionDecl>();
+                if (decl) {
+                    decl->dump();
+                }
+            }
+        }
+    }
+    ASTContext *Context;
+};
 
-      // Type name as string
-      QualType QT = f->getReturnType();
-      std::string TypeStr = QT.getAsString();
+class CLifterConsumer : public clang::ASTConsumer {
+  public:
+    explicit CLifterConsumer(ASTContext *Context) : Visitor(Context) {}
 
-      // Function name
-      DeclarationName DeclName = f->getNameInfo().getName();
-      std::string FuncName = DeclName.getAsString();
-
-      // Add comment before
-      std::stringstream SSBefore;
-      SSBefore << "// Begin function " << FuncName << " returning " << TypeStr
-               << "\n";
-      SourceLocation ST = f->getSourceRange().getBegin();
-      TheRewriter.InsertText(ST, SSBefore.str(), true, true);
-
-      // And after
-      std::stringstream SSAfter;
-      SSAfter << "\n// End function " << FuncName;
-      ST = FuncBody->getEndLoc().getLocWithOffset(1);
-      TheRewriter.InsertText(ST, SSAfter.str(), true, true);
+    virtual void HandleTranslationUnit(clang::ASTContext &Context) {
+        Visitor.TraverseDecl(Context.getTranslationUnitDecl());
     }
 
-    return true;
-  }
-
-private:
-  Rewriter &TheRewriter;
+  private:
+    CLifterVisitor Visitor;
 };
 
-// Implementation of the ASTConsumer interface for reading an AST produced
-// by the Clang parser.
-class MyASTConsumer : public ASTConsumer {
-public:
-  MyASTConsumer(Rewriter &R) : Visitor(R) {}
-
-  // Override the method that gets called for each parsed top-level
-  // declaration.
-  virtual bool HandleTopLevelDecl(DeclGroupRef DR) {
-    for (DeclGroupRef::iterator b = DR.begin(), e = DR.end(); b != e; ++b)
-      // Traverse the declaration using our AST visitor.
-      Visitor.TraverseDecl(*b);
-    return true;
-  }
-
-private:
-  MyASTVisitor Visitor;
+class CLifterClassAction : public clang::ASTFrontendAction {
+  public:
+    virtual std::unique_ptr<clang::ASTConsumer>
+    CreateASTConsumer(clang::CompilerInstance &Compiler,
+                      llvm::StringRef InFile) {
+        return std::make_unique<CLifterConsumer>(&Compiler.getASTContext());
+    }
 };
 
-int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    llvm::errs() << "Usage: rewritersample <filename>\n";
-    return 1;
-  }
+int main(int argc, const char **argv) {
+    llvm::Expected<clang::tooling::CommonOptionsParser> op =
+        CommonOptionsParser::create(argc, argv, ToolingSampleCategory);
+    //  CommonOptionsParser op (argc, argv, ToolingSampleCategory);
+    ClangTool Tool(op->getCompilations(), op->getSourcePathList());
 
-  // CompilerInstance will hold the instance of the Clang compiler for us,
-  // managing the various objects needed to run the compiler.
-  CompilerInstance TheCompInst;
-  TheCompInst.createDiagnostics();
-
-  LangOptions &lo = TheCompInst.getLangOpts();
-  lo.CPlusPlus = 1;
-
-  // Initialize target info with the default triple for our platform.
-  auto TO = std::make_shared<TargetOptions>();
-  TO->Triple = llvm::sys::getDefaultTargetTriple();
-  TargetInfo *TI =
-      TargetInfo::CreateTargetInfo(TheCompInst.getDiagnostics(), TO);
-  TheCompInst.setTarget(TI);
-
-  TheCompInst.createFileManager();
-  FileManager &FileMgr = TheCompInst.getFileManager();
-  TheCompInst.createSourceManager(FileMgr);
-  SourceManager &SourceMgr = TheCompInst.getSourceManager();
-  TheCompInst.createPreprocessor(TU_Module);
-  TheCompInst.createASTContext();
-
-  // A Rewriter helps us manage the code rewriting task.
-  Rewriter TheRewriter;
-  TheRewriter.setSourceMgr(SourceMgr, TheCompInst.getLangOpts());
-
-  // Set the main file handled by the source manager to the input file.
-  const FileEntry *FileIn = FileMgr.getFile(argv[1]).get();
-  SourceMgr.setMainFileID(
-      SourceMgr.createFileID(FileIn, SourceLocation(), SrcMgr::C_User));
-  TheCompInst.getDiagnosticClient().BeginSourceFile(
-      TheCompInst.getLangOpts(), &TheCompInst.getPreprocessor());
-
-  // Create an AST consumer instance which is going to get called by
-  // ParseAST.
-  MyASTConsumer TheConsumer(TheRewriter);
-
-  // Parse the file to AST, registering our consumer as the AST consumer.
-  ParseAST(TheCompInst.getPreprocessor(), &TheConsumer,
-           TheCompInst.getASTContext());
-
-  // At this point the rewriter's buffer should be full with the rewritten
-  // file contents.
-  const RewriteBuffer *RewriteBuf =
-      TheRewriter.getRewriteBufferFor(SourceMgr.getMainFileID());
-  llvm::outs() << std::string(RewriteBuf->begin(), RewriteBuf->end());
-
-  return 0;
+    // ClangTool::run accepts a FrontendActionFactory, which is then used to
+    // create new objects implementing the FrontendAction interface. Here we use
+    // the helper newFrontendActionFactory to create a default factory that will
+    // return a new MyFrontendAction object every time.
+    // To further customize this, we could create our own factory class.
+    return Tool.run(newFrontendActionFactory<CLifterClassAction>().get());
 }

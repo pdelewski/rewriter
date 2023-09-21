@@ -5,8 +5,18 @@ int foo()
   return 1;
 }
 
+int foo2()
+{
+  return 2;
+}
+
 void bar(int x) 
 {}
+
+void call() 
+{
+  bar(foo());
+}
 
 int main() 
 {
@@ -18,7 +28,7 @@ int main()
     x = foo();
   }
   {
-    bar(foo());
+    call();
   }
   
   return 0;

@@ -27,6 +27,7 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     }
 
     bool VisitFunctionDecl(FunctionDecl *f) {
+        replaceReturnType(f);
         // Only function definitions (with bodies), not declarations.
         if (f->hasBody()) {
             Stmt *FuncBody = f->getBody();
@@ -57,6 +58,13 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     }
 
   private:
+    void replaceReturnType(FunctionDecl* f) {
+        auto returnTypeSourceRange = f->getReturnTypeSourceRange();
+        auto rangeSize = TheRewriter.getRangeSize(returnTypeSourceRange);
+        std::stringstream ss;
+        ss << "void";
+        TheRewriter.ReplaceText(returnTypeSourceRange.getBegin(),rangeSize,ss.str());
+    }
     void dumpParents(Stmt *stmt) {
         const auto &parents = Context->getParents(*stmt);
         std::cout << "parents size " << parents.size() << ": \n";

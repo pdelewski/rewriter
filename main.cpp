@@ -27,50 +27,30 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     }
 
     bool VisitFunctionDecl(FunctionDecl *f) {
-        QualType returnType = f->getReturnType();
         addOutParam(f);
         replaceReturnType(f);
-        // Only function definitions (with bodies), not declarations.
-        if (f->hasBody()) {
-            Stmt *FuncBody = f->getBody();
-
-            // Type name as string
-            QualType QT = f->getReturnType();
-            std::string TypeStr = QT.getAsString();
-
-            // Function name
-            DeclarationName DeclName = f->getNameInfo().getName();
-            std::string FuncName = DeclName.getAsString();
-
-            // Add comment before
-            std::stringstream SSBefore;
-            SSBefore << "// Begin function " << FuncName << " returning "
-                     << TypeStr << "\n";
-            SourceLocation ST = f->getSourceRange().getBegin();
-            TheRewriter.InsertText(ST, SSBefore.str(), true, true);
-
-            // And after
-            std::stringstream SSAfter;
-            SSAfter << "\n// End function " << FuncName;
-            ST = FuncBody->getEndLoc().getLocWithOffset(1);
-            TheRewriter.InsertText(ST, SSAfter.str(), true, true);
-        }
-
         return true;
     }
 
   private:
     void addOutParam(FunctionDecl *f) {
         QualType returnType = f->getReturnType();
-        auto paramsRange = f->getParametersSourceRange();
 
         if (returnType.getAsString() == "void") {
             return;
         }
-        std::stringstream SSAfter;
-        SSAfter << ", int* __returnVal";
-        auto ST = paramsRange.getEnd().getLocWithOffset(1);
-        TheRewriter.InsertText(ST, SSAfter.str(), true, true);
+        FunctionTypeLoc functionTypeLoc = f->getFunctionTypeLoc();
+        SourceLocation rparenLoc = functionTypeLoc.getRParenLoc();
+        std::stringstream SSOutParam;
+        if (f->getNumParams() > 0) {
+            SSOutParam << ", ";
+            SSOutParam << returnType.getAsString();
+            SSOutParam << "* " << "__returnVal";
+        } else {
+            SSOutParam << returnType.getAsString();
+            SSOutParam << "* __returnVal";
+        }
+        TheRewriter.InsertText(rparenLoc, SSOutParam.str(), true, true);
     }
     void replaceReturnType(FunctionDecl *f) {
         auto returnTypeSourceRange = f->getReturnTypeSourceRange();

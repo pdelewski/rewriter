@@ -34,7 +34,6 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
                 std::cout << "parent at " << i << ": \n";
                 const BinaryOperator *expr = parents[i].get<BinaryOperator>();
                 if (expr) {
-                    auto loc = expr->getExprLoc();
                     auto lhs = expr->getLHS();
                     std::stringstream ss;
                     auto rangeSize =
@@ -63,6 +62,19 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
 
                 const VarDecl *decl = parents[i].get<VarDecl>();
                 if (decl) {
+                    // decl->dump();
+                    if (decl->hasInit()) {
+
+                        auto init = decl->getInit();
+                        auto rangeSize =
+                            TheRewriter.getRangeSize(init->getSourceRange());
+                        std::string lhsStr = TheRewriter.getRewrittenText(
+                            init->getSourceRange());
+                        TheRewriter.RemoveText(
+                            decl->getSourceRange().getBegin(),
+                            TheRewriter.getRangeSize(decl->getSourceRange()) -
+                                rangeSize);
+                    }
                 }
             }
         }

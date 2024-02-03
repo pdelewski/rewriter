@@ -26,10 +26,36 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
         replaceReturnType(f);
         return true;
     }
-    bool VisitCallExpr(CallExpr *E)
+    bool VisitCallExpr(CallExpr *call)
     {
-	dumpParents(E);
-	return true;
+        const auto &parents = Context->getParents(*call);
+        std::cout << "parents size " << parents.size() << ": \n";
+
+        if (!parents.empty()) {
+            for (int i = 0; i < parents.size(); i++) {
+                std::cout << "parent at " << i << ": \n";
+                const BinaryOperator *expr = parents[i].get<BinaryOperator>();
+                if (expr) {
+                    expr->dump();
+                    auto loc = expr->getExprLoc();
+                    auto lhs = expr->getLHS();
+                    std::stringstream ss;
+                    auto rangeSize = TheRewriter.getRangeSize(lhs->getSourceRange());
+                    TheRewriter.RemoveText(lhs->getSourceRange().getBegin(), rangeSize);
+                    auto opLoc = expr->getOperatorLoc();
+                    // check operator type
+                    const size_t opRange = 1;
+
+                    TheRewriter.RemoveText(opLoc, opRange);
+                }
+
+                const VarDecl *decl = parents[i].get<VarDecl>();
+                if (decl) {
+                    decl->dump();
+                }
+            }
+        }
+        return true;
     }
   private:
     void addOutParam(FunctionDecl *f) {
@@ -75,12 +101,6 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
                 if (decl) {
                     decl->dump();
                 }
-
-                const CallExpr *call = parents[i].get<CallExpr>();
-                if (call) {
-                    call->dump();
-                }
-
             }
         }
     }
@@ -129,7 +149,6 @@ class CLifterClassAction : public clang::ASTFrontendAction {
 int main(int argc, const char **argv) {
     llvm::Expected<clang::tooling::CommonOptionsParser> op =
         CommonOptionsParser::create(argc, argv, ToolingSampleCategory);
-    //  CommonOptionsParser op (argc, argv, ToolingSampleCategory);
     ClangTool Tool(op->getCompilations(), op->getSourcePathList());
 
     // ClangTool::run accepts a FrontendActionFactory, which is then used to

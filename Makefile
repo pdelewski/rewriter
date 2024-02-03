@@ -1,7 +1,6 @@
-#LLVM_SRC_PATH := 
+LLVM_PATH := /opt/homebrew/opt/llvm
 
-LLVM_BUILD_PATH := $(LLVM_SRC_PATH)/build/
-LLVM_BIN_PATH 	:= $(LLVM_BUILD_PATH)/bin
+LLVM_BIN_PATH 	:= $(LLVM_PATH)/bin
 
 CXX := g++
 CXXFLAGS := -fno-rtti -O0 -g
@@ -14,8 +13,7 @@ LLVM_LDFLAGS_NOLIBS := `$(LLVM_BIN_PATH)/llvm-config --ldflags`
 PLUGIN_LDFLAGS := -shared
 
 CLANG_INCLUDES := \
-	-I$(LLVM_SRC_PATH)/clang/include \
-	-I$(LLVM_BUILD_PATH)/tools/clang/include
+	-I$(LLVM_PATH)/clang/include
 
 CLANG_LIBS := \
 	-lclangAST \
@@ -29,7 +27,6 @@ CLANG_LIBS := \
 	-lclangLex \
 	-lclangParse \
 	-lclangSema \
-	-lclangEdit \
 	-lclangRewrite \
 	-lclangRewriteFrontend \
 	-lclangStaticAnalyzerFrontend \

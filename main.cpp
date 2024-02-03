@@ -26,8 +26,7 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
         replaceReturnType(f);
         return true;
     }
-    bool VisitCallExpr(CallExpr *call)
-    {
+    bool VisitCallExpr(CallExpr *call) {
         const auto &parents = Context->getParents(*call);
 
         if (!parents.empty()) {
@@ -38,24 +37,28 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
                     auto loc = expr->getExprLoc();
                     auto lhs = expr->getLHS();
                     std::stringstream ss;
-                    auto rangeSize = TheRewriter.getRangeSize(lhs->getSourceRange());
-                    std::string lhsStr = TheRewriter.getRewrittenText(lhs->getSourceRange());
-                    TheRewriter.RemoveText(lhs->getSourceRange().getBegin(), rangeSize);
+                    auto rangeSize =
+                        TheRewriter.getRangeSize(lhs->getSourceRange());
+                    std::string lhsStr =
+                        TheRewriter.getRewrittenText(lhs->getSourceRange());
+                    TheRewriter.RemoveText(lhs->getSourceRange().getBegin(),
+                                           rangeSize);
                     auto opLoc = expr->getOperatorLoc();
                     // check operator type
                     const size_t opRange = 1;
 
                     TheRewriter.RemoveText(opLoc, opRange);
 
-		    SourceLocation rparenLoc = call->getRParenLoc();
-		        std::stringstream SSOutParam;
+                    SourceLocation rparenLoc = call->getRParenLoc();
+                    std::stringstream SSOutParam;
                     if (call->getNumArgs() > 0) {
                         SSOutParam << ", ";
                         SSOutParam << "&" << lhsStr;
-	            } else {
+                    } else {
                         SSOutParam << "&" << lhsStr;
                     }
-                    TheRewriter.InsertText(rparenLoc, SSOutParam.str(), true, true);
+                    TheRewriter.InsertText(rparenLoc, SSOutParam.str(), true,
+                                           true);
                 }
 
                 const VarDecl *decl = parents[i].get<VarDecl>();
@@ -65,10 +68,11 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
         }
         return true;
     }
+
   private:
     void addOutParam(FunctionDecl *f) {
         if (f->getNameInfo().getAsString() == "main") {
-           return;
+            return;
         }
         QualType returnType = f->getReturnType();
 
@@ -81,7 +85,8 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
         if (f->getNumParams() > 0) {
             SSOutParam << ", ";
             SSOutParam << returnType.getAsString();
-            SSOutParam << "* " << "__returnVal";
+            SSOutParam << "* "
+                       << "__returnVal";
         } else {
             SSOutParam << returnType.getAsString();
             SSOutParam << "* __returnVal";

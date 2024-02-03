@@ -64,7 +64,8 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
                 if (decl) {
                     // decl->dump();
                     if (decl->hasInit()) {
-
+                        auto varName = decl->getNameAsString();
+                        std::cout << varName << std::endl;
                         auto init = decl->getInit();
                         auto rangeSize =
                             TheRewriter.getRangeSize(init->getSourceRange());
@@ -74,6 +75,16 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
                             decl->getSourceRange().getBegin(),
                             TheRewriter.getRangeSize(decl->getSourceRange()) -
                                 rangeSize);
+                        SourceLocation rparenLoc = call->getRParenLoc();
+                        std::stringstream SSOutParam;
+                        if (call->getNumArgs() > 0) {
+                            SSOutParam << ", ";
+                            SSOutParam << "&" << varName;
+                        } else {
+                            SSOutParam << "&" << varName;
+                        }
+                        TheRewriter.InsertText(rparenLoc, SSOutParam.str(),
+                                               true, true);
                     }
                 }
             }

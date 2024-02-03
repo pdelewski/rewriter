@@ -21,17 +21,16 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     explicit CLifterVisitor(ASTContext *Context, Rewriter &R)
         : Context(Context), TheRewriter(R) {}
 
-    bool VisitCompoundStmt(CompoundStmt *stmt) {
-        dumpParents(stmt);
-        return true;
-    }
-
     bool VisitFunctionDecl(FunctionDecl *f) {
         addOutParam(f);
         replaceReturnType(f);
         return true;
     }
-
+    bool VisitCallExpr(CallExpr *E)
+    {
+	dumpParents(E);
+	return true;
+    }
   private:
     void addOutParam(FunctionDecl *f) {
         QualType returnType = f->getReturnType();
@@ -67,14 +66,21 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
         if (!parents.empty()) {
             for (int i = 0; i < parents.size(); i++) {
                 std::cout << "parent at " << i << ": \n";
-                const Stmt *parentStmt = parents[i].get<Stmt>();
-                if (parentStmt) {
-                    parentStmt->dump();
+                const Expr *expr = parents[i].get<Expr>();
+                if (expr) {
+                    expr->dump();
                 }
-                const FunctionDecl *decl = parents[i].get<FunctionDecl>();
+
+                const VarDecl *decl = parents[i].get<VarDecl>();
                 if (decl) {
                     decl->dump();
                 }
+
+                const CallExpr *call = parents[i].get<CallExpr>();
+                if (call) {
+                    call->dump();
+                }
+
             }
         }
     }

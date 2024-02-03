@@ -29,29 +29,37 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     bool VisitCallExpr(CallExpr *call)
     {
         const auto &parents = Context->getParents(*call);
-        std::cout << "parents size " << parents.size() << ": \n";
 
         if (!parents.empty()) {
             for (int i = 0; i < parents.size(); i++) {
                 std::cout << "parent at " << i << ": \n";
                 const BinaryOperator *expr = parents[i].get<BinaryOperator>();
                 if (expr) {
-                    expr->dump();
                     auto loc = expr->getExprLoc();
                     auto lhs = expr->getLHS();
                     std::stringstream ss;
                     auto rangeSize = TheRewriter.getRangeSize(lhs->getSourceRange());
+                    std::string lhsStr = TheRewriter.getRewrittenText(lhs->getSourceRange());
                     TheRewriter.RemoveText(lhs->getSourceRange().getBegin(), rangeSize);
                     auto opLoc = expr->getOperatorLoc();
                     // check operator type
                     const size_t opRange = 1;
 
                     TheRewriter.RemoveText(opLoc, opRange);
+
+		    SourceLocation rparenLoc = call->getRParenLoc();
+		        std::stringstream SSOutParam;
+                    if (call->getNumArgs() > 0) {
+                        SSOutParam << ", ";
+                        SSOutParam << "&" << lhsStr;
+	            } else {
+                        SSOutParam << "&" << lhsStr;
+                    }
+                    TheRewriter.InsertText(rparenLoc, SSOutParam.str(), true, true);
                 }
 
                 const VarDecl *decl = parents[i].get<VarDecl>();
                 if (decl) {
-                    decl->dump();
                 }
             }
         }
@@ -59,6 +67,9 @@ class CLifterVisitor : public RecursiveASTVisitor<CLifterVisitor> {
     }
   private:
     void addOutParam(FunctionDecl *f) {
+        if (f->getNameInfo().getAsString() == "main") {
+           return;
+        }
         QualType returnType = f->getReturnType();
 
         if (returnType.getAsString() == "void") {
